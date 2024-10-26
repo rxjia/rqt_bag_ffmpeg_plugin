@@ -1,0 +1,7 @@
+<library path="src">
+  <class name="BagFfmpegPlugin" type="rqt_bag_ffmpeg_plugin.ffmpeg_plugin.FfmpegPlugin" base_class_type="rqt_bag::Plugin">
+    <description>
+      A plugin for rqt_bag for showing images from ffmpeg video.
+    </description>
+  </class>
+</library>
