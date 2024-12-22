@@ -1,3 +1,6 @@
+
+from rqt_bag import bag_helper
+from rclpy.time import Time
 import av
 
 class BagVideoDecoder():
@@ -46,7 +49,7 @@ class BagVideoDecoder():
                     l_frame.append(None)
                 l_packet.append(None)
 
-            key = msg.header.stamp.to_sec()
+            key = bag_helper.to_sec(Time.from_msg(msg.header.stamp))
             d_ht_idx[key] = msg_idx
             d_kf_id_off[key] = (kf_id, msg_idx - kf_id)
             msg_idx += 1
@@ -98,8 +101,10 @@ class BagVideoDecoder():
                     return self._local_frames[-1].to_image()
             else:
                 if self._codec.is_open:
-                    self._codec.close()
-                self._codec = av.CodecContext.create("h264", "r")
+                    # self._codec.close()
+                    self._codec.flush_buffers()
+
+                # self._codec = av.CodecContext.create("h264", "r")
 
                 self._local_frames = []
                 for i in range(id_kf, id_kf + id_off+1):

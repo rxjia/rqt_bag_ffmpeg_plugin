@@ -41,13 +41,17 @@ if (
 ):
     sys.modules['PyQt5'] = None
 from PIL.ImageQt import ImageQt
-
 from rqt_bag import TopicMessageView
+from rqt_bag import bag_helper
 from .bag_video_decoder import BagVideoDecoder
 
 from python_qt_binding.QtGui import QPixmap
-from python_qt_binding.QtCore import Signal
+from python_qt_binding.QtCore import qDebug, Signal
 from python_qt_binding.QtWidgets import QGraphicsScene, QGraphicsView
+
+# rclpy used for Time and Duration objects, for interacting with rosbag
+from rclpy.duration import Duration
+from rclpy.time import Time
 
 
 class FfmpegView(TopicMessageView):
@@ -60,9 +64,10 @@ class FfmpegView(TopicMessageView):
 
     def __init__(self, timeline, parent, topic):
         super(FfmpegView, self).__init__(timeline, parent, topic)
-
+        qDebug("FfmpegView.__init__...")
+        
         self.lock = threading.Lock()
-        self.timeline = timeline
+
         self.decode_video(topic)
 
         self._image = None
@@ -82,6 +87,8 @@ class FfmpegView(TopicMessageView):
         self._image_view.setScene(self._scene)
         parent.layout().addWidget(self._image_view)
 
+        qDebug("FfmpegView.__init__.")
+
     def decode_video(self, topic):
         # get bag from timeline
         bag = None
@@ -90,11 +97,39 @@ class FfmpegView(TopicMessageView):
         while bag is None:
             bag, entry = self.timeline.get_entry(start_time, topic)
             if bag is None:
-                start_time = self.timeline.get_entry_after(start_time)[1].time
+                bag, entry = self.timeline.get_entry_after(start_time, topic)
+                start_time = Time(nanoseconds=entry.timestamp)
 
         self.bag = bag
 
-        bagmsgs = self.bag.read_messages(topic)
+        # bag_helper.to_sec(self.timeline._get_start_stamp())
+        # bag_helper.to_sec(self.bag.get_earliest_timestamp())
+        # bag_helper.to_sec(self.bag.get_latest_timestamp())
+        # bag_helper.to_sec(self.timeline._get_end_stamp())
+        # self.start_stamp = self.timeline._get_start_stamp()
+        # self.end_stamp = self.timeline._get_end_stamp()
+        
+        self.start_stamp = self.bag.get_earliest_timestamp()
+        self.end_stamp = self.bag.get_latest_timestamp()
+
+        # the current region-of-interest for our bag file
+        # all resampling and plotting is done with these limits
+        self.limits = [0, bag_helper.to_sec(self.end_stamp - self.start_stamp)]
+
+        (ros_message, msg_type, topic) = self.bag.deserialize_entry(entry)
+
+
+        # bag_entries= bag.get_entries_in_range(self.start_stamp + Duration(seconds=self.limits[0]),
+        #                                      self.start_stamp + Duration(seconds=self.limits[1]),
+        #                                      topic)
+        bag_entries= bag.get_entries_in_range(self.start_stamp,
+                                             self.end_stamp,
+                                             topic)
+        bagmsgs =[]
+        for entry in bag_entries:
+            # ros_message = deserialize_message(entry.data, msg_type)
+            (ros_message, _, _) = self.bag.deserialize_entry(entry)
+            bagmsgs.append((entry.topic, ros_message, entry.timestamp))
 
         self.video_decoder = BagVideoDecoder()
         self.video_decoder.load_packets_from_bagmsgs(bagmsgs)
@@ -105,40 +140,37 @@ class FfmpegView(TopicMessageView):
         # TODO make this smarter. currently there will be no scrollbar even if the
         # timeline extends beyond the viewable area
         self.resize_signal.emit()
-        # self._scene.setSceneRect(
-        #     0, 0, self._image_view.size().width() - 2, self._image_view.size().height() - 2)
-        # self.put_image_into_scene()
 
     def _resize_cb(self):
-        # rospy.loginfo("resize cb 00")
-        # time.sleep(0.1)
+        qDebug("resize cb 00")
         with self.lock:
             self._scene.setSceneRect(
                 0, 0, self._image_view.size().width() - 2, self._image_view.size().height() - 2)
             self.put_image_into_scene()
-        # rospy.loginfo("resize cb --")
+        qDebug("resize cb --")
 
-    def message_viewed(self, bag, msg_details):
+    def message_viewed(self, *, entry, ros_message, msg_type_name, topic, **kwargs):
         """
         refreshes the image
         """
-        # rospy.loginfo("message_viewed 00")
-        TopicMessageView.message_viewed(self, bag, msg_details)
-        topic, msg, t = msg_details[:3]
+        qDebug("message_viewed 00")
+        TopicMessageView.message_viewed(self, entry=entry)
+        msg = ros_message, 
         if not msg:
             self.set_image(None, topic, 'no message')
         else:
-            self.set_image(msg, topic, msg.header.stamp)
-        # rospy.loginfo("message_viewed --")
+            self.set_image(msg, topic, ros_message.header.stamp)
+        qDebug("message_viewed --")
 
     def message_cleared(self):
-        # rospy.loginfo("message_cleared 00")
+        qDebug("message_cleared 00")
         TopicMessageView.message_cleared(self)
         self.set_image(None, None, None)
-        # rospy.loginfo("message_cleared --")
+        qDebug("message_cleared --")
 
     # End MessageView implementation
     def put_image_into_scene(self):
+        qDebug("put_image_into_scene 00")
         if self._image:
             scale_factor = min(
                 float(self._image_view.size().width() - 2) / self._image.size[0],
@@ -147,9 +179,6 @@ class FfmpegView(TopicMessageView):
                 (int(scale_factor * self._image.size[0]),
                  int(scale_factor * self._image.size[1])),
                 self.quality)
-            # plt.gca().clear()
-            # plt.imshow(resized_image)
-            # plt.pause(0.003)
 
             QtImage = ImageQt(resized_image)
             pixmap = QPixmap.fromImage(QtImage).copy()
@@ -159,17 +188,19 @@ class FfmpegView(TopicMessageView):
             self._scene.clear()
 
     def set_image(self, image_msg, image_topic, image_stamp):
+        qDebug("set_image 00")
         img = None
         if image_msg:
-            img = self.video_decoder.get_pil_img(image_stamp.to_sec())
+            img = self.video_decoder.get_pil_img(bag_helper.to_sec(Time.from_msg(image_stamp)))
 
         with self.lock:
+            self._image_msg = image_msg
+
             if img is not None:
                 self._image = img
             else:
                 self._image = None
 
-            self._image_msg = image_msg
             self._image_topic = image_topic
             self._image_stamp = image_stamp
             self.put_image_into_scene()

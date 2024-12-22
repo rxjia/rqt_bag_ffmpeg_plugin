@@ -1,10 +1,6 @@
-<?xml version="1.0"?>
-<?xml-model
-  href="http://download.ros.org/schema/package_format3.xsd"
-  schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
   <name>rqt_bag_ffmpeg_plugin</name>
-  <version>0.5.1</version>
+  <version>0.0.1</version>
   <description>rqt_bag provides a GUI plugin for displaying and replaying ROS bag files.</description>
   <maintainer email="mabel@openrobotics.org">Mabel Zhang</maintainer>
   <maintainer email="michael.jeronimo@openrobotics.org">Michael Jeronimo</maintainer>
@@ -17,18 +13,11 @@
   <author email="namniart@gmail.com">Austin Hendrix</author>
   <author>Tim Field</author>
 
-  <buildtool_depend>catkin</buildtool_depend>
-  <buildtool_depend condition="$ROS_PYTHON_VERSION == 2">python-setuptools</buildtool_depend>
-  <buildtool_depend condition="$ROS_PYTHON_VERSION == 3">python3-setuptools</buildtool_depend>
-
   <exec_depend>geometry_msgs</exec_depend>
-  <exec_depend condition="$ROS_PYTHON_VERSION == 2">python-cairo</exec_depend>
-  <exec_depend condition="$ROS_PYTHON_VERSION == 3">python3-cairo</exec_depend>
-  <exec_depend condition="$ROS_PYTHON_VERSION == 2">python-imaging</exec_depend>
-  <exec_depend condition="$ROS_PYTHON_VERSION == 3">python3-pil</exec_depend>
-  <exec_depend>rosbag</exec_depend>
-  <exec_depend>roslib</exec_depend>
-  <exec_depend>rospy</exec_depend>
+  <exec_depend>python3-cairo</exec_depend>
+  <exec_depend>python3-pil</exec_depend>
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>rosbag2</exec_depend>
   <exec_depend>rqt_bag</exec_depend>
   <exec_depend>rqt_gui</exec_depend>
   <exec_depend>rqt_gui_py</exec_depend>
@@ -37,7 +26,7 @@
   <exec_depend>std_msgs</exec_depend>
 
   <export>
-    <architecture_independent/>
+    <build_type>ament_python</build_type>
     <rqt_bag plugin="${prefix}/plugin.xml"/>
   </export>
 </package>
